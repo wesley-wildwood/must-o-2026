@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d2f27" />
+    <meta name="description" content="Live fantasy leaderboard for the 2026 U.S. Open at Shinnecock Hills." />
+    <title>MUST-O 2026 | U.S. Open Fantasy Leaderboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <header class="hero">
+      <nav class="nav shell">
+        <a class="brand" href="/" aria-label="MUST-O 2026 leaderboard home">
+          <span class="brand-mark">M</span>
+          <span>MUST-O 2026 <small>Presented by mGolf</small></span>
+        </a>
+        <div class="live-status" id="liveStatus"><span></span> Connecting</div>
+      </nav>
+      <div class="hero-content shell">
+        <div>
+          <p class="eyebrow">126th U.S. Open · June 18–21, 2026</p>
+          <h1>BROD</h1>
+          <p class="hero-copy">43 contestants. Five golfers a round. One score counts.</p>
+        </div>
+        <div class="course-card">
+          <span class="course-number">01</span>
+          <div>
+            <p>Shinnecock Hills</p>
+            <span>Southampton, New York · Par 70</span>
+          </div>
+          <svg viewBox="0 0 72 52" aria-hidden="true"><path d="M3 43c8-16 19-6 26-19C36 11 47 7 68 8M5 47c13-7 20 2 31-7 8-7 15-9 31-7"/><circle cx="52" cy="14" r="3"/></svg>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell main">
+      <section class="controls" aria-label="Leaderboard controls">
+        <div class="round-tabs" id="roundTabs">
+          <button data-round="1">Round 1</button>
+          <button data-round="2">Round 2</button>
+          <button data-round="3">Round 3</button>
+          <button data-round="4">Final Round</button>
+        </div>
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="searchInput" type="search" placeholder="Find a contestant or golfer" />
+        </label>
+      </section>
+
+      <section class="summary" id="summary" aria-label="Round summary"></section>
+
+      <section class="leaderboard-head">
+        <div>
+          <p class="section-kicker">Live standings</p>
+          <h2 id="boardTitle">Round 1 leaderboard</h2>
+        </div>
+        <div class="updated" id="updatedAt">Waiting for scores…</div>
+      </section>
+
+      <div class="column-labels" aria-hidden="true">
+        <span>Pos</span><span>Contestant</span><span>Counting score</span><span>Round pace</span><span>Today’s five</span>
+      </div>
+      <section id="leaderboard" class="leaderboard" aria-live="polite">
+        <div class="loading-card"><div class="spinner"></div><p>Walking the course for live scores…</p></div>
+      </section>
+    </main>
+
+    <footer class="footer shell">
+      <p>MUST-O 2026 presented by mGolf · Unofficial scoring tracker</p>
+      <p>Live scoring via ESPN · Auto-refreshes every 60 seconds</p>
+    </footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
