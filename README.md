@@ -22,7 +22,9 @@ Open `http://localhost:3000`. The local server proxies the live leaderboard thro
 
 ## Deploy to Vercel
 
-Import this directory as a new Vercel project. No build command or framework preset is required; Vercel serves `public/` and deploys `api/scores.js` as a serverless function.
+See `DEPLOYMENT.md` for the complete GitHub, Supabase, Vercel, verification, and custom-domain walkthrough.
+
+Import this directory as a new Vercel project. The included `vercel.json` selects the **Other** framework preset and explicitly registers `api/scores.js` as a serverless function. Vercel automatically serves the existing `public/` directory.
 
 The live event ID defaults to the 2026 U.S. Open. Set `ESPN_EVENT_ID` in Vercel only if the upstream event ID changes.
 
@@ -30,7 +32,7 @@ The live event ID defaults to the 2026 U.S. Open. Set `ESPN_EVENT_ID` in Vercel 
 
 1. Create a Supabase project.
 2. Run `supabase/migrations/001_initial.sql` in the Supabase SQL editor.
-3. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to Vercel's server-side environment variables.
+3. Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to Vercel's server-side environment variables. The legacy `SUPABASE_SERVICE_ROLE_KEY` name is also supported.
 4. Redeploy.
 
 With those variables present, successful score requests are also saved as timestamped snapshots. Never expose the service-role key in browser code.
