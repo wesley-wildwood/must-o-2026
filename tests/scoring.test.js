@@ -69,4 +69,26 @@ test("sorts golfers by round score and exposes the prior-round winner", () => {
   ]);
   assert.equal(row.previous.best, 68);
   assert.equal(row.previous.bestGolfers[0].pickName, "Bravo, Ben");
+  assert.equal(row.previous.bestGolfer.pickName, "Bravo, Ben");
+});
+
+test("chooses one stable prior-round golfer when the best score is tied", () => {
+  const names = ["Zulu, Zoe", "Alpha, Ann", "Bravo, Ben", "Charlie, Cam", "Delta, Dan"];
+  const pick = {
+    Contestant: "Tie, Team",
+    Round: "1",
+    ...Object.fromEntries(names.map((name, index) => [`Golfer ${index + 1}`, name]))
+  };
+  const players = names.map((pickName, index) => {
+    const [last, first] = pickName.split(", ");
+    const score = index < 2 ? 68 : 70 + index;
+    return {
+      name: `${first} ${last}`,
+      rounds: { 1: { strokes: score, toPar: score - 70, holes: 18 } }
+    };
+  });
+
+  const [row] = buildLeaderboard([pick], players, 1, 70);
+  assert.equal(row.current.bestGolfers.length, 2);
+  assert.equal(row.current.bestGolfer.pickName, "Alpha, Ann");
 });

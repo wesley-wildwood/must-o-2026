@@ -84,12 +84,16 @@ export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
       return tournamentDifference || a.pickName.localeCompare(b.pickName);
     });
     const bestGolfers = sortedGolfers.filter((golfer) => golfer.paceScore != null && golfer.paceScore === best);
+    const bestGolfer = bestGolfers.length
+      ? [...bestGolfers].sort((a, b) => a.pickName.localeCompare(b.pickName))[0]
+      : null;
     contestantRows.set(`${pick.Contestant}:${round}`, {
       contestant: pick.Contestant,
       round,
       golfers: sortedGolfers,
       best,
-      bestGolfers
+      bestGolfers,
+      bestGolfer
     });
   }
 

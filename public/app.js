@@ -54,8 +54,8 @@ function golferCard(golfer, best, selectedRound) {
 
 function priorRoundSummary(row) {
   if (!row.previous) return '<span class="round-history">Opening round</span>';
-  const golferNames = row.previous.bestGolfers.map((golfer) => golfer.pickName).join(" / ");
-  return `<span class="prior-best">R${row.previous.round} · ${escapeHtml(golferNames || "No score")} <b>${row.previous.best ?? "—"}</b></span>`;
+  const golferName = row.previous.bestGolfer?.pickName;
+  return `<span class="prior-best">R${row.previous.round} · ${escapeHtml(golferName || "No score")} <b>${row.previous.best ?? "—"}</b></span>`;
 }
 
 function renderSummary(rows) {
