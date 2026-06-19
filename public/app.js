@@ -1,13 +1,15 @@
 import { buildLeaderboard, formatToPar, parsePicksCsv } from "./scoring.js";
 
-const state = { picks: [], live: null, selectedRound: 1, query: "" };
+const state = { picks: { main: [], bteam: [] }, live: null, selectedGame: "main", selectedRound: 1, query: "" };
 const elements = {
   leaderboard: document.querySelector("#leaderboard"),
+  gameTabs: document.querySelector("#gameTabs"),
   tabs: document.querySelector("#roundTabs"),
   summary: document.querySelector("#summary"),
   status: document.querySelector("#liveStatus"),
   updated: document.querySelector("#updatedAt"),
   title: document.querySelector("#boardTitle"),
+  kicker: document.querySelector("#boardKicker"),
   search: document.querySelector("#searchInput")
 };
 
@@ -60,23 +62,33 @@ function priorRoundSummary(row) {
 
 function renderSummary(rows) {
   const leader = rows[0];
+  const leaderLabel = state.selectedGame === "bteam" ? "Current B-Team leader" : "Current leader";
   const onCourse = state.live.players.filter((player) => player.rounds?.[state.selectedRound]?.status === "playing").length;
   const completed = state.live.players.filter((player) => player.rounds?.[state.selectedRound]?.status === "complete").length;
   elements.summary.innerHTML = `
-    <article class="summary-feature"><span>Current leader</span><strong>${escapeHtml(leader?.contestant || "—")}</strong><small>${leader?.total == null ? "No score" : formatToPar(leader.total, 70 * state.selectedRound)} through ${state.selectedRound} round${state.selectedRound === 1 ? "" : "s"}</small></article>
+    <article class="summary-feature"><span>${leaderLabel}</span><strong>${escapeHtml(leader?.contestant || "—")}</strong><small>${leader?.total == null ? "No score" : formatToPar(leader.total, 70 * state.selectedRound)} through ${state.selectedRound} round${state.selectedRound === 1 ? "" : "s"}</small></article>
     <article><span>Leading total</span><strong>${leader?.total ?? "—"}</strong><small>Projected strokes</small></article>
     <article><span>On the course</span><strong>${onCourse}</strong><small>${completed} finished today</small></article>
     <article><span>Field</span><strong>43</strong><small>Contestants</small></article>`;
 }
 
 function render() {
-  if (!state.live || !state.picks.length) return;
-  const rows = buildLeaderboard(state.picks, state.live.players, state.selectedRound, state.live.event.par);
+  const activePicks = state.picks[state.selectedGame];
+  if (!state.live || !activePicks.length) return;
+  const rows = buildLeaderboard(activePicks, state.live.players, state.selectedRound, state.live.event.par);
   const query = state.query.toLowerCase();
   const filtered = rows.filter((row) => !query || row.contestant.toLowerCase().includes(query) || row.current.golfers.some((golfer) => golfer.displayName.toLowerCase().includes(query)));
 
+  elements.gameTabs.querySelectorAll("button").forEach((button) => {
+    const active = button.dataset.game === state.selectedGame;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
   elements.tabs.querySelectorAll("button").forEach((button) => button.classList.toggle("active", Number(button.dataset.round) === state.selectedRound));
-  elements.title.textContent = `${state.selectedRound === 4 ? "Final round" : `Round ${state.selectedRound}`} leaderboard`;
+  const roundTitle = state.selectedRound === 4 ? "Final round" : `Round ${state.selectedRound}`;
+  elements.title.textContent = state.selectedGame === "bteam" ? `${roundTitle} B-Team leaderboard` : `${roundTitle} leaderboard`;
+  elements.kicker.textContent = state.selectedGame === "bteam" ? "B-Team standings" : "Live standings";
+  document.body.dataset.game = state.selectedGame;
   renderSummary(rows);
 
   if (!filtered.length) {
@@ -115,11 +127,23 @@ async function refreshScores({ initial = false } = {}) {
 }
 
 async function init() {
-  const picksResponse = await fetch("/data/contestant-picks.csv");
-  state.picks = parsePicksCsv(await picksResponse.text());
+  const [mainResponse, bTeamResponse] = await Promise.all([
+    fetch("/data/contestant-picks.csv"),
+    fetch("/data/b-team-picks.csv")
+  ]);
+  if (!mainResponse.ok || !bTeamResponse.ok) throw new Error("One or more picks files could not be loaded");
+  state.picks.main = parsePicksCsv(await mainResponse.text());
+  state.picks.bteam = parsePicksCsv(await bTeamResponse.text());
   await refreshScores({ initial: true });
   window.setInterval(refreshScores, 60_000);
 }
+
+elements.gameTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-game]");
+  if (!button) return;
+  state.selectedGame = button.dataset.game;
+  render();
+});
 
 elements.tabs.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-round]");

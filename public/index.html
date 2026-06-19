@@ -40,11 +40,17 @@
 
     <main class="shell main">
       <section class="controls" aria-label="Leaderboard controls">
-        <div class="round-tabs" id="roundTabs">
-          <button data-round="1">Round 1</button>
-          <button data-round="2">Round 2</button>
-          <button data-round="3">Round 3</button>
-          <button data-round="4">Final Round</button>
+        <div class="control-groups">
+          <div class="game-tabs" id="gameTabs" aria-label="Game view">
+            <button class="active" data-game="main" aria-pressed="true">Main Game</button>
+            <button data-game="bteam" aria-pressed="false">B-Team</button>
+          </div>
+          <div class="round-tabs" id="roundTabs">
+            <button data-round="1">Round 1</button>
+            <button data-round="2">Round 2</button>
+            <button data-round="3">Round 3</button>
+            <button data-round="4">Final Round</button>
+          </div>
         </div>
         <label class="search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -56,7 +62,7 @@
 
       <section class="leaderboard-head">
         <div>
-          <p class="section-kicker">Live standings</p>
+          <p class="section-kicker" id="boardKicker">Live standings</p>
           <h2 id="boardTitle">Round 1 leaderboard</h2>
         </div>
         <div class="updated" id="updatedAt">Waiting for scores…</div>

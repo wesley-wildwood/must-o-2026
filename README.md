@@ -1,6 +1,6 @@
 # MUSTO U.S. Open Fantasy Leaderboard
 
-A live fantasy leaderboard for the 2026 U.S. Open at Shinnecock Hills. It combines the supplied 43-contestant picks with live round scoring and ranks each contestant by the lowest score among their five golfers each day.
+A live fantasy leaderboard for the 2026 U.S. Open at Shinnecock Hills. It combines the supplied 43-contestant picks with live round scoring and ranks each contestant by the lowest score among their five golfers each day. A built-in B-Team view scores the best round among the five golfers each contestant did not start.
 
 ## Run locally
 

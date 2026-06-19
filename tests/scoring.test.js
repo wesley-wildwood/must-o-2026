@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { buildLeaderboard, normalizeName, parsePicksCsv, roundPace } from "../public/scoring.js";
 
 test("normalizes accented live-feed names", () => {
@@ -91,4 +92,23 @@ test("chooses one stable prior-round golfer when the best score is tied", () => 
   const [row] = buildLeaderboard([pick], players, 1, 70);
   assert.equal(row.current.bestGolfers.length, 2);
   assert.equal(row.current.bestGolfer.pickName, "Alpha, Ann");
+});
+
+test("B-Team picks cover every contestant and complement the starting five", () => {
+  const main = parsePicksCsv(readFileSync(new URL("../public/data/contestant-picks.csv", import.meta.url), "utf8"));
+  const bTeam = parsePicksCsv(readFileSync(new URL("../public/data/b-team-picks.csv", import.meta.url), "utf8"));
+  const key = (row) => `${row.Contestant}:${row.Round}`;
+  const golfers = (row) => new Set([1, 2, 3, 4, 5].map((index) => row[`Golfer ${index}`]));
+  const bTeamByKey = new Map(bTeam.map((row) => [key(row), golfers(row)]));
+  const contestants = new Set(main.map((row) => row.Contestant));
+
+  assert.equal(main.length, 172);
+  assert.equal(bTeam.length, 172);
+  assert.equal(contestants.size, 43);
+  for (const row of main) {
+    const starters = golfers(row);
+    const bench = bTeamByKey.get(key(row));
+    assert.equal(bench.size, 5);
+    assert.equal([...starters].filter((golfer) => bench.has(golfer)).length, 0);
+  }
 });
