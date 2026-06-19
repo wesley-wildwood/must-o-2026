@@ -21,6 +21,11 @@ function relativeScore(value, par = 70) {
   return difference === 0 ? "E" : difference > 0 ? `+${difference}` : String(difference);
 }
 
+function tournamentScore(value) {
+  if (value == null) return "—";
+  return value === 0 ? "E" : value > 0 ? `+${value}` : String(value);
+}
+
 function golferStatus(golfer) {
   const round = golfer.round;
   if (!round || golfer.state === "not_started") {
@@ -31,16 +36,26 @@ function golferStatus(golfer) {
   return `Thru ${round.holes}`;
 }
 
-function golferCard(golfer, best) {
+function golferCard(golfer, best, selectedRound) {
   const isCounting = golfer.paceScore != null && golfer.paceScore === best;
   const score = relativeScore(golfer.paceScore);
   return `<div class="golfer ${isCounting ? "counting" : ""}">
     <div class="golfer-top">
-      <span class="golfer-name">${escapeHtml(golfer.displayName)}</span>
+      <span class="golfer-name">${escapeHtml(golfer.pickName)}</span>
       ${isCounting ? '<span class="counts">Counts</span>' : ""}
     </div>
-    <div class="golfer-score"><strong>${score}</strong><span>${golferStatus(golfer)}</span></div>
+    <div class="golfer-metrics">
+      <div class="golfer-metric"><span>R${selectedRound}</span><strong>${score}</strong></div>
+      <div class="golfer-metric tournament"><span>Total</span><strong>${tournamentScore(golfer.player?.tournamentToPar)}</strong></div>
+      <span class="golfer-progress">${golferStatus(golfer)}</span>
+    </div>
   </div>`;
+}
+
+function priorRoundSummary(row) {
+  if (!row.previous) return '<span class="round-history">Opening round</span>';
+  const golferNames = row.previous.bestGolfers.map((golfer) => golfer.pickName).join(" / ");
+  return `<span class="prior-best"><b>R${row.previous.round} ${row.previous.best ?? "—"}</b> · ${escapeHtml(golferNames || "No score")}</span>`;
 }
 
 function renderSummary(rows) {
@@ -74,10 +89,10 @@ function render() {
     const totalPar = state.live.event.par * state.selectedRound;
     return `<article class="leader-row ${row.rank <= 3 ? `top top-${row.rank}` : ""}">
       <div class="rank"><span>${row.rank}</span></div>
-      <div class="contestant"><strong>${escapeHtml(row.contestant)}</strong><span>${row.roundScores.map((score, index) => `R${index + 1} ${score ?? "—"}`).join(" · ")}</span></div>
+      <div class="contestant"><strong>${escapeHtml(row.contestant)}</strong>${priorRoundSummary(row)}</div>
       <div class="total"><strong>${row.total ?? "—"}</strong><span>${formatToPar(row.total, totalPar)}</span></div>
       <div class="round-score"><strong>${currentBest ?? "—"}</strong><span>${formatToPar(currentBest, state.live.event.par)}</span></div>
-      <div class="golfers">${row.current.golfers.map((golfer) => golferCard(golfer, currentBest)).join("")}</div>
+      <div class="golfers">${row.current.golfers.map((golfer) => golferCard(golfer, currentBest, state.selectedRound)).join("")}</div>
     </article>`;
   }).join("");
 }

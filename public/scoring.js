@@ -77,7 +77,20 @@ export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
     });
     const valid = golfers.filter((golfer) => golfer.paceScore != null);
     const best = valid.length ? Math.min(...valid.map((golfer) => golfer.paceScore)) : null;
-    contestantRows.set(`${pick.Contestant}:${round}`, { contestant: pick.Contestant, round, golfers, best });
+    const sortedGolfers = [...golfers].sort((a, b) => {
+      const scoreDifference = (a.paceScore ?? Infinity) - (b.paceScore ?? Infinity);
+      if (scoreDifference) return scoreDifference;
+      const tournamentDifference = (a.player?.tournamentToPar ?? Infinity) - (b.player?.tournamentToPar ?? Infinity);
+      return tournamentDifference || a.pickName.localeCompare(b.pickName);
+    });
+    const bestGolfers = sortedGolfers.filter((golfer) => golfer.paceScore != null && golfer.paceScore === best);
+    contestantRows.set(`${pick.Contestant}:${round}`, {
+      contestant: pick.Contestant,
+      round,
+      golfers: sortedGolfers,
+      best,
+      bestGolfers
+    });
   }
 
   const contestants = [...new Set(picks.map((pick) => pick.Contestant))].map((contestant) => {
@@ -87,6 +100,7 @@ export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
     return {
       contestant,
       current: contestantRows.get(`${contestant}:${selectedRound}`),
+      previous: selectedRound > 1 ? contestantRows.get(`${contestant}:${selectedRound - 1}`) : null,
       roundScores: scores,
       total: complete ? scores.reduce((sum, score) => sum + score, 0) : null
     };

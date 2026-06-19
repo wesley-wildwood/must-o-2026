@@ -41,3 +41,32 @@ test("ranks by prior best plus current round pace", () => {
   assert.equal(rows[0].total, 137);
   assert.equal(rows[1].total, 139);
 });
+
+test("sorts golfers by round score and exposes the prior-round winner", () => {
+  const golferNames = ["Alpha, Ann", "Bravo, Ben", "Charlie, Cam", "Delta, Dan", "Echo, Eve"];
+  const picks = [1, 2].map((round) => ({
+    Contestant: "Pool, Player",
+    Round: String(round),
+    ...Object.fromEntries(golferNames.map((name, index) => [`Golfer ${index + 1}`, name]))
+  }));
+  const roundOne = [72, 68, 71, 70, 69];
+  const roundTwo = [70, 72, 68, 71, 69];
+  const players = golferNames.map((pickName, index) => {
+    const [last, first] = pickName.split(", ");
+    return {
+      name: `${first} ${last}`,
+      tournamentToPar: roundOne[index] + roundTwo[index] - 140,
+      rounds: {
+        1: { strokes: roundOne[index], toPar: roundOne[index] - 70, holes: 18 },
+        2: { strokes: roundTwo[index], toPar: roundTwo[index] - 70, holes: 18 }
+      }
+    };
+  });
+
+  const [row] = buildLeaderboard(picks, players, 2, 70);
+  assert.deepEqual(row.current.golfers.map((golfer) => golfer.pickName), [
+    "Charlie, Cam", "Echo, Eve", "Alpha, Ann", "Delta, Dan", "Bravo, Ben"
+  ]);
+  assert.equal(row.previous.best, 68);
+  assert.equal(row.previous.bestGolfers[0].pickName, "Bravo, Ben");
+});
