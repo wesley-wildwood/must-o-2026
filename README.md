@@ -1,6 +1,6 @@
 # MUSTO U.S. Open Fantasy Leaderboard
 
-A live fantasy leaderboard for the 2026 U.S. Open at Shinnecock Hills. It combines the supplied 43-contestant picks with live round scoring and ranks each contestant by the lowest score among their five golfers each day. A built-in B-Team view scores the best round among the five golfers each contestant did not start. The Alt view selects the four lowest rounds posted across each contestant's three alternates, regardless of day.
+A live fantasy leaderboard for the 2026 U.S. Open at Shinnecock Hills. It combines the supplied 43-contestant picks with live round scoring and ranks each contestant by the lowest score among their five golfers each day. A built-in B-Team view scores the best round among the five golfers each contestant did not start. The Alt view selects the four lowest rounds posted across each contestant's three alternates, regardless of day. Straight and Flush use only golfer-round scores played in the Main Game, accumulating from 5 possible scores after Round 1 to 20 after the Final Round.
 
 ## Run locally
 
@@ -19,6 +19,8 @@ Open `http://localhost:3000`. The local server proxies the live leaderboard thro
 - During play, pace is `course par + the golfer's current score to par`. A golfer at `-2 through 9`, for example, is pacing to 68 on a par-70 course.
 - The leaderboard total is completed daily counting scores plus the selected round's live pace.
 - Ties share the same rank.
+- **Straight:** longest consecutive run among Main Game golfer-round scores posted through the selected day. Ties are broken by the lowest starting score, then the lowest score outside the run.
+- **Flush:** largest group of identical Main Game golfer-round scores posted through the selected day. Ties compare the next-best flush group, with lower scores winning equal-sized groups.
 
 ## Deploy to Vercel
 

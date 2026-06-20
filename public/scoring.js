@@ -183,6 +183,106 @@ export function buildAltLeaderboard(picks, livePlayers, throughRound, par = 70) 
   });
 }
 
+function buildEligibleGolfers(picks, livePlayers, selectedRound, par) {
+  const playersByName = new Map(livePlayers.map((player) => [normalizeName(player.name), player]));
+  const teams = new Map();
+
+  for (const pick of picks.filter((entry) => Number(entry.Round) <= selectedRound)) {
+    const roundNumber = Number(pick.Round);
+    const golfers = teams.get(pick.Contestant) || [];
+    for (let index = 1; index <= 5; index += 1) {
+      const pickName = pick[`Golfer ${index}`];
+      if (!pickName) continue;
+      const player = playersByName.get(normalizeName(pickNameToDisplay(pickName)));
+      const pace = playerRoundPace(player, roundNumber, par);
+      golfers.push({
+        key: `${roundNumber}:${normalizeName(pickName)}`,
+        roundNumber,
+        pickName,
+        displayName: player?.name || pickNameToDisplay(pickName),
+        player,
+        round: pace.round || null,
+        paceScore: pace.score,
+        awardScore: pace.state === "not_started" ? null : pace.score,
+        state: pace.state,
+        counting: false
+      });
+    }
+    teams.set(pick.Contestant, golfers);
+  }
+
+  return [...teams].map(([contestant, golfers]) => ({ contestant, golfers }));
+}
+
+function rankedRows(rows, compare, sameRank) {
+  rows.sort((a, b) => compare(a, b) || a.contestant.localeCompare(b.contestant));
+  let previous = null;
+  let previousRank = 0;
+  return rows.map((row, index) => {
+    const rank = previous && sameRank(previous, row) ? previousRank : index + 1;
+    previous = row;
+    previousRank = rank;
+    return { ...row, rank };
+  });
+}
+
+export function buildStraightLeaderboard(picks, livePlayers, selectedRound, par = 70) {
+  const rows = buildEligibleGolfers(picks, livePlayers, selectedRound, par).map((team) => {
+    const scores = [...new Set(team.golfers.map((golfer) => golfer.awardScore).filter((score) => score != null))].sort((a, b) => a - b);
+    const runs = [];
+    for (let startIndex = 0; startIndex < scores.length; startIndex += 1) {
+      let endIndex = startIndex;
+      while (endIndex + 1 < scores.length && scores[endIndex + 1] === scores[endIndex] + 1) endIndex += 1;
+      const runScores = scores.slice(startIndex, endIndex + 1);
+      const runSet = new Set(runScores);
+      const outsideScore = scores.find((score) => !runSet.has(score)) ?? Infinity;
+      runs.push({ runScores, length: runScores.length, startScore: runScores[0], outsideScore });
+      startIndex = endIndex;
+    }
+    const bestRun = runs.sort((a, b) => b.length - a.length || a.startScore - b.startScore || a.outsideScore - b.outsideScore)[0]
+      || { runScores: [], length: 0, startScore: Infinity, outsideScore: Infinity };
+    const highlightedScores = new Set(bestRun.runScores);
+    const golfers = team.golfers
+      .map((golfer) => ({ ...golfer, counting: highlightedScores.has(golfer.awardScore) }))
+      .sort((a, b) => (a.paceScore ?? Infinity) - (b.paceScore ?? Infinity) || a.pickName.localeCompare(b.pickName));
+    return { ...team, golfers, ...bestRun };
+  });
+  const compare = (a, b) => {
+    if (a.length !== b.length) return b.length - a.length;
+    if (a.startScore !== b.startScore) return a.startScore - b.startScore;
+    if (a.outsideScore !== b.outsideScore) return a.outsideScore - b.outsideScore;
+    return 0;
+  };
+  return rankedRows(rows, compare, (a, b) => compare(a, b) === 0);
+}
+
+function compareFlushGroups(a = [], b = []) {
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const left = a[index] || { count: 0, score: Infinity };
+    const right = b[index] || { count: 0, score: Infinity };
+    if (left.count !== right.count) return right.count - left.count;
+    if (left.score !== right.score) return left.score - right.score;
+  }
+  return 0;
+}
+
+export function buildFlushLeaderboard(picks, livePlayers, selectedRound, par = 70) {
+  const rows = buildEligibleGolfers(picks, livePlayers, selectedRound, par).map((team) => {
+    const counts = new Map();
+    for (const golfer of team.golfers) {
+      if (golfer.awardScore != null) counts.set(golfer.awardScore, (counts.get(golfer.awardScore) || 0) + 1);
+    }
+    const groups = [...counts].map(([score, count]) => ({ score, count })).sort((a, b) => b.count - a.count || a.score - b.score);
+    const primary = groups[0] || { score: null, count: 0 };
+    const golfers = team.golfers
+      .map((golfer) => ({ ...golfer, counting: golfer.awardScore != null && golfer.awardScore === primary.score }))
+      .sort((a, b) => (a.paceScore ?? Infinity) - (b.paceScore ?? Infinity) || a.pickName.localeCompare(b.pickName));
+    return { ...team, golfers, groups, flushScore: primary.score, flushCount: primary.count };
+  });
+  return rankedRows(rows, (a, b) => compareFlushGroups(a.groups, b.groups), (a, b) => compareFlushGroups(a.groups, b.groups) === 0);
+}
+
 export function formatToPar(score, parTotal) {
   if (score == null) return "—";
   const value = score - parTotal;

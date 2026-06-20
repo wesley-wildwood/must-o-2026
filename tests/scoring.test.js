@@ -1,7 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildAltLeaderboard, buildLeaderboard, normalizeName, parsePicksCsv, roundPace } from "../public/scoring.js";
+import {
+  buildAltLeaderboard,
+  buildFlushLeaderboard,
+  buildLeaderboard,
+  buildStraightLeaderboard,
+  normalizeName,
+  parsePicksCsv,
+  roundPace
+} from "../public/scoring.js";
+
+function awardTeam(contestant, scores) {
+  const names = scores.map((score, index) => `${contestant}${index}, Player`);
+  const picks = [0, 5].map((offset) => ({
+    Contestant: contestant,
+    Round: "1",
+    ...Object.fromEntries(names.slice(offset, offset + 5).map((name, index) => [`Golfer ${index + 1}`, name]))
+  }));
+  const players = names.map((pickName, index) => {
+    const [last, first] = pickName.split(", ");
+    const score = scores[index];
+    return { name: `${first} ${last}`, rounds: { 1: { strokes: score, toPar: score - 70, holes: 18 } } };
+  });
+  return { picks, players };
+}
 
 test("normalizes accented live-feed names", () => {
   assert.equal(normalizeName("Ludvig Åberg"), normalizeName("Ludvig Aberg"));
@@ -176,4 +199,76 @@ test("Alt weekend rounds exclude missed-cut golfers while retaining prior scores
   assert.equal(cutAlternate.rounds[2].score, null);
   assert.equal(row.countedRounds.some((round) => round.key === "Cut, Missed:3"), false);
   assert.equal(row.countedRounds.some((round) => round.key === "Cut, Missed:1"), true);
+});
+
+test("Straight ranks the longest consecutive run before its score tie-breaks", () => {
+  const lowStart = awardTeam("Low", [68, 69, 70, 74, 75, 76, 80, 81, 82, 83]);
+  const longRun = awardTeam("Long", [69, 70, 71, 72, 78, 79, 80, 82, 84, 86]);
+  const highStart = awardTeam("High", [70, 71, 72, 73, 74, 76, 78, 80, 82, 84]);
+  const rows = buildStraightLeaderboard(
+    [...lowStart.picks, ...longRun.picks, ...highStart.picks],
+    [...lowStart.players, ...longRun.players, ...highStart.players],
+    1,
+    70
+  );
+
+  assert.deepEqual(rows.map((row) => row.contestant), ["High", "Long", "Low"]);
+  assert.deepEqual(rows[0].runScores, [70, 71, 72, 73, 74]);
+  assert.equal(rows[0].length, 5);
+  assert.equal(rows[2].length, 4);
+});
+
+test("Flush compares the strongest repeated score and then the next group", () => {
+  const strongerSecond = awardTeam("Second", [70, 70, 70, 71, 71, 72, 73, 74, 75, 76]);
+  const weakerSecond = awardTeam("Weaker", [70, 70, 70, 72, 72, 73, 74, 75, 76, 77]);
+  const lowerFlush = awardTeam("Lower", [69, 69, 69, 74, 75, 76, 77, 78, 79, 80]);
+  const rows = buildFlushLeaderboard(
+    [...strongerSecond.picks, ...weakerSecond.picks, ...lowerFlush.picks],
+    [...strongerSecond.players, ...weakerSecond.players, ...lowerFlush.players],
+    1,
+    70
+  );
+
+  assert.deepEqual(rows.map((row) => row.contestant), ["Lower", "Second", "Weaker"]);
+  assert.equal(rows[0].flushCount, 3);
+  assert.equal(rows[0].flushScore, 69);
+  assert.deepEqual(rows[1].groups.slice(0, 2), [{ score: 70, count: 3 }, { score: 71, count: 2 }]);
+});
+
+test("award games do not treat not-started golfers as rounds of even par", () => {
+  const team = awardTeam("Waiting", [70, 70, 70, 70, 70, 70, 70, 70, 70, 70]);
+  team.players.forEach((player) => {
+    player.rounds[1] = { strokes: null, toPar: null, holes: 0, status: "not_started" };
+  });
+
+  const [straight] = buildStraightLeaderboard(team.picks, team.players, 1, 70);
+  const [flush] = buildFlushLeaderboard(team.picks, team.players, 1, 70);
+  assert.equal(straight.length, 0);
+  assert.equal(flush.flushCount, 0);
+});
+
+test("Straight and Flush accumulate only the 20 Main Game golfer-rounds", () => {
+  const picks = Array.from({ length: 4 }, (_, roundIndex) => ({
+    Contestant: "Twenty, Team",
+    Round: String(roundIndex + 1),
+    ...Object.fromEntries(Array.from({ length: 5 }, (_, golferIndex) => [
+      `Golfer ${golferIndex + 1}`,
+      `Golfer${golferIndex}, Test`
+    ]))
+  }));
+  const players = Array.from({ length: 5 }, (_, golferIndex) => ({
+    name: `Test Golfer${golferIndex}`,
+    rounds: Object.fromEntries(Array.from({ length: 4 }, (_, roundIndex) => {
+      const score = 68 + roundIndex * 5 + golferIndex;
+      return [roundIndex + 1, { strokes: score, toPar: score - 70, holes: 18 }];
+    }))
+  }));
+
+  const [roundTwo] = buildStraightLeaderboard(picks, players, 2, 70);
+  const [finalStraight] = buildStraightLeaderboard(picks, players, 4, 70);
+  const [finalFlush] = buildFlushLeaderboard(picks, players, 4, 70);
+  assert.equal(roundTwo.golfers.length, 10);
+  assert.equal(finalStraight.golfers.length, 20);
+  assert.equal(finalFlush.golfers.length, 20);
+  assert.deepEqual(new Set(finalStraight.golfers.map((golfer) => golfer.roundNumber)), new Set([1, 2, 3, 4]));
 });

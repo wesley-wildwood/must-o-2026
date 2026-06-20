@@ -1,4 +1,11 @@
-import { buildAltLeaderboard, buildLeaderboard, formatToPar, parsePicksCsv } from "./scoring.js";
+import {
+  buildAltLeaderboard,
+  buildFlushLeaderboard,
+  buildLeaderboard,
+  buildStraightLeaderboard,
+  formatToPar,
+  parsePicksCsv
+} from "./scoring.js";
 
 const state = { picks: { main: [], bteam: [], alt: [] }, live: null, selectedGame: "main", selectedRound: 1, query: "" };
 const elements = {
@@ -44,8 +51,8 @@ function golferStatus(golfer) {
   return `Thru ${round.holes}`;
 }
 
-function golferCard(golfer, best, selectedRound) {
-  const isCounting = golfer.paceScore != null && golfer.paceScore === best;
+function golferCard(golfer, best, selectedRound, awardCounting = null) {
+  const isCounting = awardCounting ?? (golfer.paceScore != null && golfer.paceScore === best);
   const inactive = golfer.state === "missed_cut" || golfer.state === "withdrawn";
   const score = relativeScore(golfer.paceScore);
   return `<div class="golfer ${isCounting ? "counting" : ""} ${inactive ? "inactive" : ""}">
@@ -81,9 +88,24 @@ function altGolferCard(alternate) {
 
 function renderSummary(rows) {
   const leader = rows[0];
-  const leaderLabel = state.selectedGame === "bteam" ? "Current B-Team leader" : state.selectedGame === "alt" ? "Current Alt leader" : "Current leader";
+  const awardMode = state.selectedGame === "straight" || state.selectedGame === "flush";
+  const leaderLabel = state.selectedGame === "bteam" ? "Current B-Team leader" : state.selectedGame === "alt" ? "Current Alt leader" : awardMode ? `Current ${state.selectedGame} leader` : "Current leader";
   const onCourse = state.live.players.filter((player) => player.rounds?.[state.selectedRound]?.status === "playing").length;
   const completed = state.live.players.filter((player) => player.rounds?.[state.selectedRound]?.status === "complete").length;
+  if (awardMode) {
+    const straight = state.selectedGame === "straight";
+    const primary = straight ? leader?.length : leader?.flushCount;
+    const primaryDetail = straight ? (leader?.runScores?.join("–") || "No run") : (leader?.flushScore == null ? "No score" : `${leader.flushScore}s`);
+    const secondary = straight
+      ? (Number.isFinite(leader?.outsideScore) ? leader.outsideScore : "—")
+      : (leader?.groups?.[1] ? `${leader.groups[1].count} × ${leader.groups[1].score}` : "—");
+    elements.summary.innerHTML = `
+      <article class="summary-feature"><span>${leaderLabel}</span><strong>${escapeHtml(leader?.contestant || "—")}</strong><small>Round ${state.selectedRound} · ${primaryDetail}</small></article>
+      <article><span>${straight ? "Longest string" : "Largest flush"}</span><strong>${primary ?? "—"}</strong><small>${primaryDetail}</small></article>
+      <article><span>${straight ? "Best outside score" : "Next flush group"}</span><strong>${secondary}</strong><small>Current tie-break</small></article>
+      <article><span>Eligible rounds</span><strong>${state.selectedRound * 5}</strong><small>Main Game starters through R${state.selectedRound}</small></article>`;
+    return;
+  }
   if (state.selectedGame === "alt") {
     elements.summary.innerHTML = `
       <article class="summary-feature"><span>${leaderLabel}</span><strong>${escapeHtml(leader?.contestant || "—")}</strong><small>${leader?.toPar == null ? "No score" : tournamentScore(leader.toPar)} · ${leader?.countedRoundCount || 0}/4 rounds counted through R${state.selectedRound}</small></article>
@@ -101,7 +123,15 @@ function renderSummary(rows) {
 
 function configureView() {
   const roundTitle = state.selectedRound === 4 ? "Final round" : `Round ${state.selectedRound}`;
-  if (state.selectedGame === "alt") {
+  const awardMode = state.selectedGame === "straight" || state.selectedGame === "flush";
+  if (awardMode) {
+    const straight = state.selectedGame === "straight";
+    elements.title.textContent = `${roundTitle} ${straight ? "Straight" : "Flush"}`;
+    elements.kicker.textContent = `${straight ? "Consecutive" : "Matching"} scores`;
+    elements.cumulativeHeader.textContent = straight ? "String length" : "Flush size";
+    elements.roundHeader.textContent = straight ? "Outside score" : "Next flush";
+    elements.golfersHeader.textContent = "Main Game golfer rounds · winning scores highlighted";
+  } else if (state.selectedGame === "alt") {
     elements.title.textContent = `Alt leaderboard through ${roundTitle}`;
     elements.kicker.textContent = "Best four rounds";
     elements.cumulativeHeader.textContent = "Best 4 total";
@@ -127,16 +157,41 @@ function renderAltRows(rows) {
   </article>`).join("");
 }
 
+function renderAwardRows(rows) {
+  const straight = state.selectedGame === "straight";
+  return rows.map((row) => {
+    const primary = straight ? row.length : row.flushCount;
+    const primaryDetail = straight ? (row.runScores.join("–") || "No run") : (row.flushScore == null ? "No score" : `${row.flushScore}s`);
+    const secondary = straight
+      ? (Number.isFinite(row.outsideScore) ? row.outsideScore : "—")
+      : (row.groups[1] ? `${row.groups[1].count} × ${row.groups[1].score}` : "—");
+    return `<article class="leader-row award-row ${row.rank <= 3 ? `top top-${row.rank}` : ""}">
+      <div class="rank"><span>${row.rank}</span></div>
+      <div class="contestant"><strong>${escapeHtml(row.contestant)}</strong><span>${straight ? "Straight" : "Flush"} · ${primaryDetail}</span></div>
+      <div class="total"><strong>${primary}</strong><span>${straight ? "scores" : primaryDetail}</span></div>
+      <div class="round-score"><strong>${secondary}</strong><span>Tie-break</span></div>
+      <div class="golfers">${row.golfers.map((golfer) => golferCard(golfer, null, golfer.roundNumber, golfer.counting)).join("")}</div>
+    </article>`;
+  }).join("");
+}
+
 function render() {
-  const activePicks = state.picks[state.selectedGame];
+  const awardMode = state.selectedGame === "straight" || state.selectedGame === "flush";
+  const activePicks = awardMode ? state.picks.main : state.picks[state.selectedGame];
   if (!state.live || !activePicks.length) return;
   const altMode = state.selectedGame === "alt";
-  const rows = altMode
+  const rows = state.selectedGame === "straight"
+    ? buildStraightLeaderboard(activePicks, state.live.players, state.selectedRound, state.live.event.par)
+    : state.selectedGame === "flush"
+      ? buildFlushLeaderboard(activePicks, state.live.players, state.selectedRound, state.live.event.par)
+      : altMode
     ? buildAltLeaderboard(activePicks, state.live.players, state.selectedRound, state.live.event.par)
     : buildLeaderboard(activePicks, state.live.players, state.selectedRound, state.live.event.par);
   const query = state.query.toLowerCase();
   const filtered = rows.filter((row) => !query || row.contestant.toLowerCase().includes(query) || (altMode
     ? row.alternates.some((alternate) => alternate.pickName.toLowerCase().includes(query))
+    : awardMode
+      ? row.golfers.some((golfer) => golfer.displayName.toLowerCase().includes(query))
     : row.current.golfers.some((golfer) => golfer.displayName.toLowerCase().includes(query))));
 
   elements.gameTabs.querySelectorAll("button").forEach((button) => {
@@ -156,6 +211,10 @@ function render() {
 
   if (altMode) {
     elements.leaderboard.innerHTML = renderAltRows(filtered);
+    return;
+  }
+  if (awardMode) {
+    elements.leaderboard.innerHTML = renderAwardRows(filtered);
     return;
   }
 
