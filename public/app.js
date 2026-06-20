@@ -33,6 +33,8 @@ function tournamentScore(value) {
 }
 
 function golferStatus(golfer) {
+  if (golfer.state === "missed_cut") return "MC";
+  if (golfer.state === "withdrawn") return "WD";
   const round = golfer.round;
   if (!round || golfer.state === "not_started") {
     if (round?.teeTime) return new Date(round.teeTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -44,8 +46,9 @@ function golferStatus(golfer) {
 
 function golferCard(golfer, best, selectedRound) {
   const isCounting = golfer.paceScore != null && golfer.paceScore === best;
+  const inactive = golfer.state === "missed_cut" || golfer.state === "withdrawn";
   const score = relativeScore(golfer.paceScore);
-  return `<div class="golfer ${isCounting ? "counting" : ""}">
+  return `<div class="golfer ${isCounting ? "counting" : ""} ${inactive ? "inactive" : ""}">
     <div class="golfer-top">
       <span class="golfer-name">${escapeHtml(golfer.pickName)}</span>
       ${isCounting ? '<span class="counts">Counts</span>' : ""}
@@ -65,11 +68,13 @@ function priorRoundSummary(row) {
 }
 
 function altGolferCard(alternate) {
-  const rounds = alternate.rounds.map((round) => `<div class="alt-round ${round.counting ? "counting" : ""}">
+  const inactive = alternate.player?.status === "missed_cut" || alternate.player?.status === "withdrawn";
+  const inactiveLabel = alternate.player?.status === "withdrawn" ? "WD" : "MC";
+  const rounds = alternate.rounds.map((round) => `<div class="alt-round ${round.counting ? "counting" : ""} ${round.state === "missed_cut" || round.state === "withdrawn" ? "inactive" : ""}">
     <span>R${round.roundNumber}</span><strong>${relativeScore(round.score)}</strong><small>${golferStatus(round)}</small>
   </div>`).join("");
-  return `<div class="alt-golfer">
-    <div class="alt-golfer-top"><span class="golfer-name">${escapeHtml(alternate.pickName)}</span><span class="alt-total">Total ${tournamentScore(alternate.player?.tournamentToPar)}</span></div>
+  return `<div class="alt-golfer ${inactive ? "inactive" : ""}">
+    <div class="alt-golfer-top"><span class="golfer-name">${escapeHtml(alternate.pickName)}</span>${inactive ? `<span class="inactive-label">${inactiveLabel}</span>` : ""}<span class="alt-total">Total ${tournamentScore(alternate.player?.tournamentToPar)}</span></div>
     <div class="alt-rounds">${rounds}</div>
   </div>`;
 }

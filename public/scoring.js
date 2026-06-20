@@ -55,6 +55,14 @@ export function roundPace(round, par = 70) {
   return { score: null, state: round.status || "unavailable" };
 }
 
+function playerRoundPace(player, roundNumber, par) {
+  if (roundNumber >= 3 && (player?.status === "missed_cut" || player?.status === "withdrawn")) {
+    return { score: null, state: player.status };
+  }
+  const round = player?.rounds?.[roundNumber] || player?.rounds?.[String(roundNumber)] || null;
+  return { ...roundPace(round, par), round };
+}
+
 export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
   const playersByName = new Map(livePlayers.map((player) => [normalizeName(player.name), player]));
   const contestantRows = new Map();
@@ -64,13 +72,12 @@ export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
     const golfers = [1, 2, 3, 4, 5].map((index) => {
       const pickName = pick[`Golfer ${index}`];
       const player = playersByName.get(normalizeName(pickNameToDisplay(pickName)));
-      const roundData = player?.rounds?.[round] || player?.rounds?.[String(round)] || null;
-      const pace = roundPace(roundData, par);
+      const pace = playerRoundPace(player, round, par);
       return {
         pickName,
         displayName: player?.name || pickNameToDisplay(pickName),
         player,
-        round: roundData,
+        round: pace.round || null,
         paceScore: pace.score,
         state: pace.state
       };
@@ -129,12 +136,11 @@ export function buildAltLeaderboard(picks, livePlayers, throughRound, par = 70) 
       const player = playersByName.get(normalizeName(pickNameToDisplay(pickName)));
       const rounds = Array.from({ length: throughRound }, (_, index) => {
         const roundNumber = index + 1;
-        const round = player?.rounds?.[roundNumber] || player?.rounds?.[String(roundNumber)] || null;
-        const pace = roundPace(round, par);
+        const pace = playerRoundPace(player, roundNumber, par);
         return {
           key: `${pickName}:${roundNumber}`,
           roundNumber,
-          round,
+          round: pace.round || null,
           score: pace.score,
           state: pace.state,
           counting: false

@@ -15,7 +15,21 @@ function teeTime(round) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
-function shapePlayer(competitor) {
+function firstTwoRounds(competitor) {
+  return [1, 2].map((period) => (competitor.linescores || []).find((round) => round.period === period));
+}
+
+function computeCutLine(competitors, par) {
+  const completed = competitors.flatMap((competitor) => {
+    const rounds = firstTwoRounds(competitor);
+    if (!rounds.every((round) => round && round.linescores?.length >= 18 && Number.isFinite(round.value))) return [];
+    return [rounds[0].value + rounds[1].value - par * 2];
+  }).sort((a, b) => a - b);
+  if (!completed.length) return null;
+  return completed[Math.min(59, completed.length - 1)];
+}
+
+function shapePlayer(competitor, { currentRound, cutLine, par }) {
   const rounds = {};
   for (const round of competitor.linescores || []) {
     const roundNumber = round.period;
@@ -32,6 +46,14 @@ function shapePlayer(competitor) {
     };
   }
 
+  const openingRounds = firstTwoRounds(competitor);
+  const completed36 = openingRounds.every((round) => round && round.linescores?.length >= 18 && Number.isFinite(round.value));
+  const scoreAfter36 = completed36 ? openingRounds[0].value + openingRounds[1].value - par * 2 : null;
+  let status = "active";
+  if (currentRound >= 3 && cutLine != null) {
+    status = !completed36 ? "withdrawn" : scoreAfter36 > cutLine ? "missed_cut" : "active";
+  }
+
   return {
     id: competitor.id,
     name: competitor.athlete?.displayName,
@@ -40,6 +62,8 @@ function shapePlayer(competitor) {
     flag: competitor.athlete?.flag?.href || null,
     tournamentToPar: parseToPar(competitor.score),
     position: competitor.order || null,
+    status,
+    scoreAfter36,
     rounds
   };
 }
@@ -82,20 +106,24 @@ export default async function handler(request, response) {
     const event = data.events?.find((item) => item.id === EVENT_ID) || data.events?.[0];
     const competition = event?.competitions?.[0];
     if (!event || !competition) throw new Error("U.S. Open event was not found");
+    const currentRound = competition.status?.period || 1;
+    const par = 70;
+    const cutLine = currentRound >= 3 ? computeCutLine(competition.competitors || [], par) : null;
 
     const payload = {
       event: {
         id: event.id,
         name: event.name,
         venue: "Shinnecock Hills Golf Club",
-        par: 70,
+        par,
+        cutLine,
         status: competition.status?.type?.description || event.status?.type?.description || "Scheduled",
         statusDetail: competition.status?.type?.detail || null,
-        currentRound: competition.status?.period || 1,
+        currentRound,
         startDate: event.date,
         endDate: event.endDate
       },
-      players: (competition.competitors || []).map(shapePlayer),
+      players: (competition.competitors || []).map((competitor) => shapePlayer(competitor, { currentRound, cutLine, par })),
       updatedAt: new Date().toISOString(),
       source: "ESPN public scoreboard"
     };

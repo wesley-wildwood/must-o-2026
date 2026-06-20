@@ -139,3 +139,41 @@ test("Alt picks include three unique golfers for all 43 contestants", () => {
   assert.equal(new Set(alt.map((row) => row.Contestant)).size, 43);
   for (const row of alt) assert.equal(new Set([row.First, row.Second, row.Third]).size, 3);
 });
+
+test("missed-cut golfers remain visible but cannot count in weekend rounds", () => {
+  const picks = [{
+    Contestant: "Cut, Test", Round: "3",
+    "Golfer 1": "Cut, Missed", "Golfer 2": "Active, One", "Golfer 3": "Active, Two",
+    "Golfer 4": "Active, Three", "Golfer 5": "Active, Four"
+  }];
+  const players = [
+    { name: "Missed Cut", status: "missed_cut", tournamentToPar: 5, rounds: {} },
+    ...["One Active", "Two Active", "Three Active", "Four Active"].map((name, index) => ({
+      name, status: "active", tournamentToPar: index,
+      rounds: { 3: { strokes: 70 + index, toPar: index, holes: 18 } }
+    }))
+  ];
+
+  const [row] = buildLeaderboard(picks, players, 3, 70);
+  const missedCut = row.current.golfers.find((golfer) => golfer.pickName === "Cut, Missed");
+  assert.equal(missedCut.state, "missed_cut");
+  assert.equal(missedCut.paceScore, null);
+  assert.equal(row.current.best, 70);
+  assert.equal(row.current.bestGolfers.some((golfer) => golfer.pickName === "Cut, Missed"), false);
+});
+
+test("Alt weekend rounds exclude missed-cut golfers while retaining prior scores", () => {
+  const picks = [{ Contestant: "Alt Cut, Test", First: "Cut, Missed", Second: "Active, One", Third: "Active, Two" }];
+  const players = [
+    { name: "Missed Cut", status: "missed_cut", rounds: { 1: { strokes: 68, toPar: -2, holes: 18 }, 2: { strokes: 69, toPar: -1, holes: 18 } } },
+    { name: "One Active", status: "active", rounds: { 1: { strokes: 70, toPar: 0, holes: 18 }, 2: { strokes: 71, toPar: 1, holes: 18 }, 3: { strokes: 67, toPar: -3, holes: 18 } } },
+    { name: "Two Active", status: "active", rounds: { 1: { strokes: 72, toPar: 2, holes: 18 }, 2: { strokes: 73, toPar: 3, holes: 18 }, 3: { strokes: 74, toPar: 4, holes: 18 } } }
+  ];
+
+  const [row] = buildAltLeaderboard(picks, players, 3, 70);
+  const cutAlternate = row.alternates.find((alternate) => alternate.pickName === "Cut, Missed");
+  assert.equal(cutAlternate.rounds[2].state, "missed_cut");
+  assert.equal(cutAlternate.rounds[2].score, null);
+  assert.equal(row.countedRounds.some((round) => round.key === "Cut, Missed:3"), false);
+  assert.equal(row.countedRounds.some((round) => round.key === "Cut, Missed:1"), true);
+});
