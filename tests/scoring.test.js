@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildLeaderboard, normalizeName, parsePicksCsv, roundPace } from "../public/scoring.js";
+import { buildAltLeaderboard, buildLeaderboard, normalizeName, parsePicksCsv, roundPace } from "../public/scoring.js";
 
 test("normalizes accented live-feed names", () => {
   assert.equal(normalizeName("Ludvig Åberg"), normalizeName("Ludvig Aberg"));
@@ -111,4 +111,31 @@ test("B-Team picks cover every contestant and complement the starting five", () 
     assert.equal(bench.size, 5);
     assert.equal([...starters].filter((golfer) => bench.has(golfer)).length, 0);
   }
+});
+
+test("Alt scoring takes the four lowest rounds across all golfers and days", () => {
+  const picks = [{ Contestant: "Alt, Team", First: "Alpha, Ann", Second: "Bravo, Ben", Third: "Charlie, Cam" }];
+  const players = [
+    { name: "Ann Alpha", tournamentToPar: 3, rounds: { 1: { strokes: 68, toPar: -2, holes: 18 }, 2: { strokes: 75, toPar: 5, holes: 18 } } },
+    { name: "Ben Bravo", tournamentToPar: 1, rounds: { 1: { strokes: 69, toPar: -1, holes: 18 }, 2: { strokes: 72, toPar: 2, holes: 18 } } },
+    { name: "Cam Charlie", tournamentToPar: -3, rounds: { 1: { strokes: 70, toPar: 0, holes: 18 }, 2: { strokes: 67, toPar: -3, holes: 18 } } }
+  ];
+
+  const [row] = buildAltLeaderboard(picks, players, 2, 70);
+  assert.equal(row.total, 274);
+  assert.equal(row.toPar, -6);
+  assert.equal(row.countedRoundCount, 4);
+  assert.deepEqual(row.countedRounds.map((round) => [round.pickName, round.roundNumber, round.score]), [
+    ["Charlie, Cam", 2, 67],
+    ["Alpha, Ann", 1, 68],
+    ["Bravo, Ben", 1, 69],
+    ["Charlie, Cam", 1, 70]
+  ]);
+});
+
+test("Alt picks include three unique golfers for all 43 contestants", () => {
+  const alt = parsePicksCsv(readFileSync(new URL("../public/data/alt-picks.csv", import.meta.url), "utf8"));
+  assert.equal(alt.length, 43);
+  assert.equal(new Set(alt.map((row) => row.Contestant)).size, 43);
+  for (const row of alt) assert.equal(new Set([row.First, row.Second, row.Third]).size, 3);
 });

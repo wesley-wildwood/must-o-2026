@@ -121,6 +121,62 @@ export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
   });
 }
 
+export function buildAltLeaderboard(picks, livePlayers, throughRound, par = 70) {
+  const playersByName = new Map(livePlayers.map((player) => [normalizeName(player.name), player]));
+  const rows = picks.map((pick) => {
+    const alternates = ["First", "Second", "Third"].map((column) => {
+      const pickName = pick[column];
+      const player = playersByName.get(normalizeName(pickNameToDisplay(pickName)));
+      const rounds = Array.from({ length: throughRound }, (_, index) => {
+        const roundNumber = index + 1;
+        const round = player?.rounds?.[roundNumber] || player?.rounds?.[String(roundNumber)] || null;
+        const pace = roundPace(round, par);
+        return {
+          key: `${pickName}:${roundNumber}`,
+          roundNumber,
+          round,
+          score: pace.score,
+          state: pace.state,
+          counting: false
+        };
+      });
+      return { pickName, player, rounds };
+    });
+
+    const postedRounds = alternates
+      .flatMap((alternate) => alternate.rounds.map((round) => ({ ...round, pickName: alternate.pickName })))
+      .filter((round) => round.score != null)
+      .sort((a, b) => a.score - b.score || a.roundNumber - b.roundNumber || a.pickName.localeCompare(b.pickName));
+    const countedRounds = postedRounds.slice(0, 4);
+    const countingKeys = new Set(countedRounds.map((round) => round.key));
+    const displayedAlternates = alternates.map((alternate) => ({
+      ...alternate,
+      rounds: alternate.rounds.map((round) => ({ ...round, counting: countingKeys.has(round.key) }))
+    }));
+    const total = countedRounds.length ? countedRounds.reduce((sum, round) => sum + round.score, 0) : null;
+    const toPar = total == null ? null : total - par * countedRounds.length;
+
+    return {
+      contestant: pick.Contestant,
+      alternates: displayedAlternates,
+      countedRounds,
+      countedRoundCount: countedRounds.length,
+      total,
+      toPar
+    };
+  });
+
+  rows.sort((a, b) => (a.toPar ?? Infinity) - (b.toPar ?? Infinity) || a.contestant.localeCompare(b.contestant));
+  let previousScore = null;
+  let previousRank = 0;
+  return rows.map((entry, index) => {
+    const rank = entry.toPar === previousScore ? previousRank : index + 1;
+    previousScore = entry.toPar;
+    previousRank = rank;
+    return { ...entry, rank };
+  });
+}
+
 export function formatToPar(score, parTotal) {
   if (score == null) return "—";
   const value = score - parTotal;

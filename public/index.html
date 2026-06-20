@@ -44,6 +44,7 @@
           <div class="game-tabs" id="gameTabs" aria-label="Game view">
             <button class="active" data-game="main" aria-pressed="true">Main Game</button>
             <button data-game="bteam" aria-pressed="false">B-Team</button>
+            <button data-game="alt" aria-pressed="false">Alt</button>
           </div>
           <div class="round-tabs" id="roundTabs">
             <button data-round="1">Round 1</button>
@@ -69,7 +70,7 @@
       </section>
 
       <div class="column-labels" aria-hidden="true">
-        <span>Pos</span><span>Team</span><span>Cumulative score</span><span>Round pace</span><span>Golfers</span>
+        <span>Pos</span><span id="teamHeader">Team</span><span id="cumulativeHeader">Cumulative score</span><span id="roundHeader">Round pace</span><span id="golfersHeader">Golfers</span>
       </div>
       <section id="leaderboard" class="leaderboard" aria-live="polite">
         <div class="loading-card"><div class="spinner"></div><p>Walking the course for live scores…</p></div>
