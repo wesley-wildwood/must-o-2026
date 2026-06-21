@@ -18,7 +18,8 @@ Open `http://localhost:3000`. The local server proxies the live leaderboard thro
 - The lowest 18-hole score is the contestant's counting score for that round.
 - During play, pace is `course par + the golfer's current score to par`. A golfer at `-2 through 9`, for example, is pacing to 68 on a par-70 course.
 - The leaderboard total is completed daily counting scores plus the selected round's live pace.
-- Ties share the same rank.
+- **Main Game and B-Team ties:** after cumulative BROD totals, compare every non-counting golfer-round from lowest to highest until the tie is broken.
+- **Alt ties:** first-place ties compare unused alternate rounds from lowest to highest. Ties below first place remain tied.
 - **Straight:** longest consecutive run among Main Game golfer-round scores posted through the selected day. Ties are broken by the lowest starting score, then the lowest score outside the run.
 - **Flush:** largest group of identical Main Game golfer-round scores posted through the selected day. Ties compare the next-best flush group, with lower scores winning equal-sized groups.
 

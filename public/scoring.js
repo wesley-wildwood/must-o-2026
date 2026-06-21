@@ -63,6 +63,15 @@ function playerRoundPace(player, roundNumber, par) {
   return { ...roundPace(round, par), round };
 }
 
+function compareScoreSequences(left = [], right = []) {
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (left[index] ?? Infinity) - (right[index] ?? Infinity);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
 export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
   const playersByName = new Map(livePlayers.map((player) => [normalizeName(player.name), player]));
   const contestantRows = new Map();
@@ -108,21 +117,30 @@ export function buildLeaderboard(picks, livePlayers, selectedRound, par = 70) {
     const roundRows = Array.from({ length: selectedRound }, (_, index) => contestantRows.get(`${contestant}:${index + 1}`));
     const scores = roundRows.map((row) => row?.best ?? null);
     const complete = scores.every((score) => score != null);
+    const tieBreakScores = roundRows.flatMap((row) => {
+      if (!row || row.best == null) return [];
+      const candidates = row.golfers.map((golfer) => golfer.paceScore).filter((score) => score != null).sort((a, b) => a - b);
+      const countedIndex = candidates.indexOf(row.best);
+      if (countedIndex >= 0) candidates.splice(countedIndex, 1);
+      return candidates;
+    }).sort((a, b) => a - b);
     return {
       contestant,
       current: contestantRows.get(`${contestant}:${selectedRound}`),
       previous: selectedRound > 1 ? contestantRows.get(`${contestant}:${selectedRound - 1}`) : null,
       roundScores: scores,
+      tieBreakScores,
       total: complete ? scores.reduce((sum, score) => sum + score, 0) : null
     };
   });
 
-  contestants.sort((a, b) => (a.total ?? Infinity) - (b.total ?? Infinity) || a.contestant.localeCompare(b.contestant));
-  let previousTotal = null;
+  const compare = (a, b) => (a.total ?? Infinity) - (b.total ?? Infinity) || compareScoreSequences(a.tieBreakScores, b.tieBreakScores);
+  contestants.sort((a, b) => compare(a, b) || a.contestant.localeCompare(b.contestant));
+  let previous = null;
   let previousRank = 0;
   return contestants.map((entry, index) => {
-    const rank = entry.total === previousTotal ? previousRank : index + 1;
-    previousTotal = entry.total;
+    const rank = previous && compare(previous, entry) === 0 ? previousRank : index + 1;
+    previous = entry;
     previousRank = rank;
     return { ...entry, rank };
   });
@@ -154,6 +172,7 @@ export function buildAltLeaderboard(picks, livePlayers, throughRound, par = 70) 
       .filter((round) => round.score != null)
       .sort((a, b) => a.score - b.score || a.roundNumber - b.roundNumber || a.pickName.localeCompare(b.pickName));
     const countedRounds = postedRounds.slice(0, 4);
+    const uncountedRounds = postedRounds.slice(4);
     const countingKeys = new Set(countedRounds.map((round) => round.key));
     const displayedAlternates = alternates.map((alternate) => ({
       ...alternate,
@@ -166,17 +185,34 @@ export function buildAltLeaderboard(picks, livePlayers, throughRound, par = 70) 
       contestant: pick.Contestant,
       alternates: displayedAlternates,
       countedRounds,
+      uncountedRounds,
+      tieBreakScores: uncountedRounds.map((round) => round.score),
       countedRoundCount: countedRounds.length,
       total,
       toPar
     };
   });
 
-  rows.sort((a, b) => (a.toPar ?? Infinity) - (b.toPar ?? Infinity) || a.contestant.localeCompare(b.contestant));
+  const bestScore = Math.min(...rows.map((row) => row.toPar ?? Infinity));
+  rows.sort((a, b) => {
+    const scoreDifference = (a.toPar ?? Infinity) - (b.toPar ?? Infinity);
+    if (scoreDifference) return scoreDifference;
+    if (a.toPar === bestScore) {
+      const tieBreakDifference = compareScoreSequences(a.tieBreakScores, b.tieBreakScores);
+      if (tieBreakDifference) return tieBreakDifference;
+    }
+    return a.contestant.localeCompare(b.contestant);
+  });
+  const first = rows[0];
   let previousScore = null;
   let previousRank = 0;
   return rows.map((entry, index) => {
-    const rank = entry.toPar === previousScore ? previousRank : index + 1;
+    let rank;
+    if (entry.toPar === bestScore) {
+      rank = first && compareScoreSequences(first.tieBreakScores, entry.tieBreakScores) === 0 ? 1 : 2;
+    } else {
+      rank = entry.toPar === previousScore ? previousRank : index + 1;
+    }
     previousScore = entry.toPar;
     previousRank = rank;
     return { ...entry, rank };

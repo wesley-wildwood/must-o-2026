@@ -66,6 +66,37 @@ test("ranks by prior best plus current round pace", () => {
   assert.equal(rows[1].total, 139);
 });
 
+test("Main and B-Team cumulative ties compare every non-counting round from lowest to highest", () => {
+  const scorecards = {
+    A: [[68, 70, 71, 72, 73], [70, 71, 72, 73, 74]],
+    B: [[69, 69, 70, 71, 72], [69, 69, 73, 74, 75]]
+  };
+  const picks = [];
+  const players = [];
+  for (const [contestant, rounds] of Object.entries(scorecards)) {
+    rounds.forEach((scores, roundIndex) => {
+      const names = scores.map((score, golferIndex) => `${contestant}${roundIndex}${golferIndex}, Player`);
+      picks.push({
+        Contestant: contestant,
+        Round: String(roundIndex + 1),
+        ...Object.fromEntries(names.map((name, index) => [`Golfer ${index + 1}`, name]))
+      });
+      names.forEach((pickName, golferIndex) => {
+        const [last, first] = pickName.split(", ");
+        const score = scores[golferIndex];
+        players.push({ name: `${first} ${last}`, rounds: { [roundIndex + 1]: { strokes: score, toPar: score - 70, holes: 18 } } });
+      });
+    });
+  }
+
+  const rows = buildLeaderboard(picks, players, 2, 70);
+  assert.equal(rows[0].contestant, "B");
+  assert.equal(rows[0].total, 138);
+  assert.equal(rows[1].total, 138);
+  assert.deepEqual(rows[0].tieBreakScores.slice(0, 3), [69, 69, 70]);
+  assert.deepEqual(rows[1].tieBreakScores.slice(0, 3), [70, 71, 71]);
+});
+
 test("sorts golfers by round score and exposes the prior-round winner", () => {
   const golferNames = ["Alpha, Ann", "Bravo, Ben", "Charlie, Cam", "Delta, Dan", "Echo, Eve"];
   const picks = [1, 2].map((round) => ({
@@ -154,6 +185,39 @@ test("Alt scoring takes the four lowest rounds across all golfers and days", () 
     ["Bravo, Ben", 1, 69],
     ["Charlie, Cam", 1, 70]
   ]);
+});
+
+test("Alt uses unused rounds to break first-place ties only", () => {
+  const makeAlt = (contestant, scores) => {
+    const names = ["One", "Two", "Three"].map((name) => `${contestant}${name}, Player`);
+    const pick = { Contestant: contestant, First: names[0], Second: names[1], Third: names[2] };
+    const players = names.map((pickName, golferIndex) => {
+      const [last, first] = pickName.split(", ");
+      return {
+        name: `${first} ${last}`,
+        rounds: {
+          1: { strokes: scores[golferIndex * 2], toPar: scores[golferIndex * 2] - 70, holes: 18 },
+          2: { strokes: scores[golferIndex * 2 + 1], toPar: scores[golferIndex * 2 + 1] - 70, holes: 18 }
+        }
+      };
+    });
+    return { pick, players };
+  };
+  const a = makeAlt("A", [68, 69, 70, 71, 72, 73]);
+  const b = makeAlt("B", [68, 69, 70, 71, 71, 80]);
+  const c = makeAlt("C", [69, 70, 71, 72, 73, 74]);
+  const d = makeAlt("D", [69, 70, 71, 72, 72, 80]);
+  const rows = buildAltLeaderboard(
+    [a.pick, b.pick, c.pick, d.pick],
+    [...a.players, ...b.players, ...c.players, ...d.players],
+    2,
+    70
+  );
+
+  assert.deepEqual(rows.map((row) => row.contestant), ["B", "A", "C", "D"]);
+  assert.deepEqual(rows.map((row) => row.rank), [1, 2, 3, 3]);
+  assert.deepEqual(rows[0].tieBreakScores, [71, 80]);
+  assert.deepEqual(rows[1].tieBreakScores, [72, 73]);
 });
 
 test("Alt picks include three unique golfers for all 43 contestants", () => {
